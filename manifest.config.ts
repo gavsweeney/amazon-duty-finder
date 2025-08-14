@@ -1,0 +1,19 @@
+import { defineManifest } from "@crxjs/vite-plugin";
+
+export default defineManifest({
+  manifest_version: 3,
+  name: "Amazon Duty Finder",
+  version: "0.1.0",
+  permissions: ["storage"],
+  host_permissions: ["https://www.amazon.*/*", "https://smile.amazon.*/*"],
+  background: { service_worker: "src/background.ts", type: "module" },
+  content_scripts: [
+    {
+      matches: ["https://www.amazon.*/*", "https://smile.amazon.*/*"],
+      js: ["src/content.ts"],
+      run_at: "document_idle"
+    }
+  ],
+  action: { default_title: "Duty Finder" },
+  web_accessible_resources: [{ resources: ["styles/inject.css"], matches: ["<all_urls>"] }]
+});
