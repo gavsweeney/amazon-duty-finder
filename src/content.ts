@@ -62,16 +62,45 @@ async function fetchDuty(product: any) {
   }
 }
 
+async function fetchOrigin(product: any) {
+  console.log("Content: Sending message to background script:", { type: "GET_ORIGIN_ONLY", product });
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "GET_ORIGIN_ONLY", product });
+    console.log("Content: Received origin response from background:", response);
+    return response;
+  } catch (error) {
+    console.error("Content: Error sending origin message:", error);
+    throw error;
+  }
+}
+
 function render(el: HTMLElement, data: any) {
   const conf = Math.round((data?.chosen?.confidence ?? 0) * 100);
   const hs = data?.chosen?.hs_code ?? "—";
   const ratePct = ((data?.duty_rate ?? 0) * 100).toFixed(1);
+  
+  // Render origin information
+  let originHtml = "";
+  if (data?.origin?.countries && data.origin.countries.length > 0) {
+    const countries = data.origin.countries.map((c: any) => c.country).join(", ");
+    const confidence = Math.round((data.origin.countries[0]?.confidence ?? 0) * 100);
+    const source = data.origin.countries[0]?.sources?.[0] || "analysis";
+    
+    originHtml = `
+    <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
+      <div style="font-weight:600; margin-bottom:4px;">Country of Origin</div>
+      <div>${countries}</div>
+      <small>Confidence: ${confidence}% | Source: ${source}</small>
+    </div>`;
+  }
+  
   el.innerHTML = `
   <div style="font-family: system-ui; border:1px solid #ddd; border-radius:10px; padding:12px;">
     <div style="font-weight:600; margin-bottom:4px;">Estimated UK Duty</div>
     <div>HS: ${hs} (${conf}% conf.)</div>
     <div>Rate: ${ratePct}%</div>
     <small>Source: ${data?.source ?? "local table"}</small>
+    ${originHtml}
   </div>`;
 }
 

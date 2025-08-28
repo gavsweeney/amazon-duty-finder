@@ -54,7 +54,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }).then(r => r.json());
 
         console.log("Background: Received rate response:", rate);
-        sendResponse(rate);
+        
+        // Also fetch origin information
+        console.log("Background: Calling /origin endpoint for country of origin");
+        const origin = await fetch(`${API_BASE}/origin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            brand: product.brand, 
+            title: product.title,
+            hs_code: top.hs_code 
+          })
+        }).then(r => r.json());
+
+        console.log("Background: Received origin response:", origin);
+        
+        // Combine duty and origin information
+        const combinedResponse = {
+          ...rate,
+          origin: origin
+        };
+        
+        sendResponse(combinedResponse);
       } catch (error) {
         console.error("Background script error:", error);
         sendResponse({ 
@@ -62,6 +83,42 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           duty_rate: 0,
           chosen: { hs_code: "—", confidence: 0 },
           source: "error"
+        });
+      }
+    })();
+    
+    // Return true to indicate we'll send a response asynchronously
+    return true;
+  }
+  
+  if (msg.type === "GET_ORIGIN_ONLY") {
+    console.log("Background: Processing GET_ORIGIN_ONLY message");
+    
+    // Handle the message asynchronously
+    (async () => {
+      try {
+        console.log("Background: Starting GET_ORIGIN_ONLY process");
+        const product = msg.product;
+        
+        console.log("Background: Calling /origin endpoint for country of origin");
+        const origin = await fetch(`${API_BASE}/origin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            brand: product.brand, 
+            title: product.title
+          })
+        }).then(r => r.json());
+
+        console.log("Background: Received origin response:", origin);
+        sendResponse(origin);
+      } catch (error) {
+        console.error("Background script error:", error);
+        sendResponse({ 
+          error: "Failed to fetch origin information",
+          countries: [],
+          search_query: "",
+          notes: "Error occurred during analysis"
         });
       }
     })();

@@ -8,6 +8,7 @@ A Chrome extension that automatically calculates UK import duties for Amazon pro
 - **AI-Powered Classification**: Uses Cloudflare AI to classify products with HS codes
 - **Image Recognition**: Falls back to image analysis for products with limited descriptions
 - **Real-time Duty Calculation**: Instantly displays estimated UK import duties
+- **Country of Origin Detection**: Identifies manufacturing countries at the brand level
 - **Smart Fallbacks**: Graceful degradation when AI classification fails
 
 ## 🏗️ Architecture
@@ -100,10 +101,17 @@ The system:
 - Calculates applicable duty rates
 - Falls back to baseline rates when needed
 
-### 4. UI Display
+### 4. Country of Origin Detection
+The system identifies manufacturing countries by:
+- **Brand Mapping**: Uses a comprehensive database of known brand manufacturing locations
+- **AI Analysis**: Falls back to AI-powered analysis for unknown brands
+- **Multiple Countries**: Handles brands with production in multiple locations
+
+### 5. UI Display
 Results are displayed in a clean, informative card showing:
 - HS code and confidence
 - Estimated duty rate
+- Country of origin with confidence
 - Data source information
 
 ## 🎯 Supported Product Types
@@ -112,6 +120,36 @@ Results are displayed in a clean, informative card showing:
 - **Electronics**: Various rates based on classification
 - **Clothing & Textiles**: Category-specific rates
 - **Other Products**: Baseline rate application
+
+## 🏭 Supported Brands for Country of Origin
+
+### Gaming & Miniatures
+- **Games Workshop** (United Kingdom)
+- **Wizards of the Coast** (United States, China)
+- **Fantasy Flight Games** (United States, China)
+- **CMON** (China, United States)
+- **Privateer Press** (United States, China)
+
+### Model Kits & Hobbies
+- **LEGO** (Denmark, Czech Republic, Hungary, Mexico, China)
+- **Bandai** (Japan, China)
+- **Tamiya** (Japan, China)
+- **Revell** (Germany, Czech Republic, China)
+- **Airfix** (United Kingdom, India)
+
+### Board Games
+- **Asmodee** (France, China, United States)
+- **Rio Grande** (United States, Germany)
+- **Mayfair** (United States, Germany)
+- **Stonemaier** (United States, China)
+
+### Collectibles
+- **Funko** (United States, China)
+- **McFarlane** (United States, China)
+- **Hot Toys** (Hong Kong, China)
+- **Prime 1 Studio** (Japan, China)
+
+*For brands not in our database, the system uses AI analysis to determine likely manufacturing countries.*
 
 ## 🔍 Debugging
 
@@ -135,8 +173,16 @@ wrangler tail
 ### Adding New Features
 
 1. **New Product Categories**: Add HS codes to the tariff table in `worker.ts`
-2. **UI Enhancements**: Modify `inject.css` and `content.ts`
-3. **AI Improvements**: Update system prompts in `worker.ts`
+2. **New Brands**: Add brand-to-country mappings in `worker.ts`
+3. **UI Enhancements**: Modify `inject.css` and `content.ts`
+4. **AI Improvements**: Update system prompts in `worker.ts`
+
+### API Endpoints
+
+The Cloudflare Worker provides these endpoints:
+- **`/classify`**: AI-powered HS code classification
+- **`/rate`**: Duty rate calculation using HS codes
+- **`/origin`**: Country of origin detection (brand mapping + AI fallback)
 
 ### Testing
 
