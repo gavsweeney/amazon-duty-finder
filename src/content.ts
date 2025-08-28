@@ -132,12 +132,21 @@ function render(el: HTMLElement, data: any) {
       }
     }
     
+    // Add analysis explanation if available
+    let analysisExplanation = "";
+    if (data?.origin?.analysis_explanation) {
+      analysisExplanation = `<div style="margin-top:8px; padding:8px; background:#f8f9fa; border-radius:6px; font-size:0.85em; line-height:1.4; color:#555;">
+        <strong>Analysis:</strong> ${data.origin.analysis_explanation}
+      </div>`;
+    }
+    
     originHtml = `
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
       <div style="font-weight:600; margin-bottom:4px;">Country of Origin</div>
       <div>${countries}</div>
       <small>Confidence: ${confidence}% | Source: ${source}</small>
       ${eanUpcInfo}
+      ${analysisExplanation}
     </div>`;
   }
   
