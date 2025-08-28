@@ -115,7 +115,19 @@ const brandOriginMap: Record<string, string[]> = {
   "Secret Weapon": ["United States", "China"],
   "Green Stuff World": ["Spain", "China"],
   "P3": ["United States", "China"],
-  "Formula P3": ["United States", "China"]
+  "Formula P3": ["United States", "China"],
+  
+  // Tools & Hardware
+  "Milwaukee": ["United States", "China", "Mexico"],
+  "DeWalt": ["United States", "China", "Mexico"],
+  "Makita": ["Japan", "China", "United Kingdom"],
+  "Bosch": ["Germany", "China", "United States"],
+  "Ryobi": ["Japan", "China", "United States"],
+  "Black & Decker": ["United States", "China", "Mexico"],
+  "Stanley": ["United States", "China", "United Kingdom"],
+  "Craftsman": ["United States", "China", "Mexico"],
+  "Husky": ["United States", "China"],
+  "Kobalt": ["United States", "China"]
 };
 
 const tariffTable = JSON.parse(UkTariffText());
@@ -193,7 +205,20 @@ function findBrandOrigin(brand: string): string[] | null {
     "Secret Weapon": "Secret Weapon",
     "GSW": "Green Stuff World",
     "P3": "P3",
-    "Formula P3": "Formula P3"
+    "Formula P3": "Formula P3",
+    
+    // Tool brand variations
+    "Milwaukee": "Milwaukee",
+    "DeWalt": "DeWalt", 
+    "Makita": "Makita",
+    "Bosch": "Bosch",
+    "Ryobi": "Ryobi",
+    "B&D": "Black & Decker",
+    "Black and Decker": "Black & Decker",
+    "Stanley": "Stanley",
+    "Craftsman": "Craftsman",
+    "Husky": "Husky",
+    "Kobalt": "Kobalt"
   };
   
   // Check variations first
