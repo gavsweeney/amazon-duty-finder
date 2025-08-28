@@ -10,6 +10,8 @@ interface OriginRequest {
   brand: string;
   title: string;
   hs_code?: string;
+  ean?: string;
+  upc?: string;
 }
 
 interface OriginResponse {
@@ -149,6 +151,103 @@ function bestPrefix(code: string) {
   const candidates = [10, 8, 6].map(n => code.replace(/\D/g, "").slice(0, n)).filter(Boolean);
   for (const c of candidates) if (tariffTable[c]) return c;
   return "";
+}
+
+// EAN-13 country code prefixes
+const eanCountryPrefixes: Record<string, string[]> = {
+  "00": ["United States", "Canada"],
+  "01": ["United States", "Canada"],
+  "02": ["United States", "Canada"],
+  "03": ["United States", "Canada"],
+  "04": ["United States", "Canada"],
+  "05": ["United States", "Canada"],
+  "06": ["United States", "Canada"],
+  "07": ["United States", "Canada"],
+  "08": ["United States", "Canada"],
+  "09": ["United States", "Canada"],
+  "10": ["United States", "Canada"],
+  "11": ["United States", "Canada"],
+  "12": ["United States", "Canada"],
+  "13": ["United States", "Canada"],
+  "20": ["United States"], // Reserved for local use
+  "21": ["United States"], // Reserved for local use
+  "22": ["United States"], // Reserved for local use
+  "23": ["United States"], // Reserved for local use
+  "24": ["United States"], // Reserved for local use
+  "25": ["United States"], // Reserved for local use
+  "26": ["United States"], // Reserved for local use
+  "27": ["United States"], // Reserved for local use
+  "28": ["United States"], // Reserved for local use
+  "29": ["United States"], // Reserved for local use
+  "30": ["France"],
+  "31": ["France"],
+  "32": ["France"],
+  "33": ["France"],
+  "34": ["France"],
+  "35": ["France"],
+  "36": ["France"],
+  "37": ["France"],
+  "40": ["Germany"],
+  "41": ["Germany"],
+  "42": ["Germany"],
+  "43": ["Germany"],
+  "44": ["Germany"],
+  "45": ["Japan"],
+  "46": ["Japan"],
+  "47": ["Japan"],
+  "48": ["Japan"],
+  "49": ["Japan"],
+  "50": ["United Kingdom"],
+  "54": ["Belgium", "Luxembourg"],
+  "57": ["Denmark"],
+  "64": ["Finland"],
+  "70": ["Norway"],
+  "73": ["Sweden"],
+  "76": ["Switzerland"],
+  "80": ["Italy"],
+  "81": ["Italy"],
+  "82": ["Italy"],
+  "83": ["Italy"],
+  "84": ["Spain"],
+  "87": ["Netherlands"],
+  "90": ["Austria"],
+  "91": ["Austria"],
+  "93": ["Australia"],
+  "94": ["New Zealand"]
+};
+
+function analyzeEANCountry(ean: string): { countries: string[], confidence: number, reasoning: string } | null {
+  if (!ean || ean.length < 2) return null;
+  
+  const prefix = ean.substring(0, 2);
+  const countries = eanCountryPrefixes[prefix];
+  
+  if (countries) {
+    return {
+      countries,
+      confidence: 0.85, // High confidence for EAN country codes
+      reasoning: `EAN-13 country code prefix '${prefix}' indicates registration in ${countries.join(', ')}`
+    };
+  }
+  
+  return null;
+}
+
+function analyzeUPCCountry(upc: string): { countries: string[], confidence: number, reasoning: string } | null {
+  if (!upc || upc.length < 1) return null;
+  
+  // UPC-A codes typically start with 0-9 for US/Canada
+  const firstDigit = upc.charAt(0);
+  
+  if (firstDigit >= '0' && firstDigit <= '9') {
+    return {
+      countries: ["United States", "Canada"],
+      confidence: 0.80, // Good confidence for UPC codes
+      reasoning: `UPC-A code starting with '${firstDigit}' typically indicates US/Canada registration`
+    };
+  }
+  
+  return null;
 }
 
 function findBrandOrigin(brand: string): string[] | null {
@@ -421,10 +520,52 @@ export default {
           });
         }
         
-        // If no brand match, fall back to AI analysis
-        console.log("Worker: No brand match found, using AI analysis");
+        // If no brand match, try EAN/UPC analysis first
+        let eanUPCResult = null;
+        if (body.ean) {
+          console.log("Worker: Analyzing EAN code:", body.ean);
+          eanUPCResult = analyzeEANCountry(body.ean);
+          if (eanUPCResult) {
+            console.log("Worker: EAN analysis result:", eanUPCResult);
+          }
+        }
+        
+        if (body.upc && !eanUPCResult) {
+          console.log("Worker: Analyzing UPC code:", body.upc);
+          eanUPCResult = analyzeUPCCountry(body.upc);
+          if (eanUPCResult) {
+            console.log("Worker: UPC analysis result:", eanUPCResult);
+          }
+        }
+        
+        // If EAN/UPC analysis found countries, use that
+        if (eanUPCResult) {
+          console.log("Worker: Using EAN/UPC analysis result");
+          return json({
+            countries: eanUPCResult.countries.map(country => ({
+              country,
+              confidence: eanUPCResult.confidence,
+              reasoning: eanUPCResult.reasoning,
+              sources: ["ean_upc_analysis"]
+            })),
+            search_query: `${cleanBrand} ${cleanTitle} (EAN: ${body.ean || 'N/A'}, UPC: ${body.upc || 'N/A'})`,
+            analysis_method: "ean_upc_analysis",
+            confidence_factors: ["barcode_country_code", "product_registration"],
+            notes: `Country of origin determined from EAN/UPC barcode analysis. This indicates where the product was registered, which often correlates with manufacturing location.`,
+            ean_upc_info: {
+              ean: body.ean || null,
+              upc: body.upc || null,
+              analysis_method: body.ean ? "EAN-13" : "UPC-A"
+            }
+          });
+        }
+        
+        // If no EAN/UPC match, fall back to AI analysis
+        console.log("Worker: No brand or EAN/UPC match found, using AI analysis");
         console.log("Worker: Brand:", cleanBrand);
         console.log("Worker: Title:", cleanTitle);
+        console.log("Worker: EAN:", body.ean || "N/A");
+        console.log("Worker: UPC:", body.upc || "N/A");
         
         const searchQuery = `${cleanBrand} ${cleanTitle} country of origin made in where manufactured production location "made in" "assembled in"`;
         console.log("Worker: AI search query:", searchQuery);
@@ -435,6 +576,8 @@ export default {
 PRODUCT INFORMATION:
 - Brand: "${cleanBrand}"
 - Title: "${cleanTitle}"
+- EAN: "${body.ean || 'Not provided'}"
+- UPC: "${body.upc || 'Not provided'}"
 - Search Query: "${searchQuery}"
 
 ANALYSIS INSTRUCTIONS:
@@ -442,7 +585,8 @@ ANALYSIS INSTRUCTIONS:
 2. Consider the product type and common manufacturing locations
 3. Look for explicit mentions of "made in", "assembled in", or similar phrases
 4. Consider industry patterns for this type of product
-5. Be realistic about confidence levels based on available information
+5. If EAN/UPC codes are provided, consider their country implications
+6. Be realistic about confidence levels based on available information
 
 REQUIRED OUTPUT FORMAT (JSON only):
 {

@@ -13,6 +13,40 @@ function scrape() {
   const bullets = [...document.querySelectorAll("#feature-bullets li")]
     .map(li => li.textContent?.trim()).filter(Boolean);
 
+  // Extract EAN/UPC information
+  let ean = "";
+  let upc = "";
+  
+  // Look for EAN/UPC in product details, bullets, or technical specifications
+  const allText = `${title} ${brand} ${bullets.join(' ')} ${breadcrumbs.join(' ')}`;
+  
+  // EAN-13 pattern (13 digits)
+  const eanMatch = allText.match(/\b(\d{13})\b/);
+  if (eanMatch) {
+    ean = eanMatch[1];
+    console.log("Content: Found EAN:", ean);
+  }
+  
+  // UPC-A pattern (12 digits)
+  const upcMatch = allText.match(/\b(\d{12})\b/);
+  if (upcMatch) {
+    upc = upcMatch[1];
+    console.log("Content: Found UPC:", upc);
+  }
+  
+  // Also check for "UPC:" or "EAN:" prefixes
+  const upcPrefixMatch = allText.match(/UPC[:\s]*(\d{12})/i);
+  if (upcPrefixMatch && !upc) {
+    upc = upcPrefixMatch[1];
+    console.log("Content: Found UPC with prefix:", upc);
+  }
+  
+  const eanPrefixMatch = allText.match(/EAN[:\s]*(\d{13})/i);
+  if (eanPrefixMatch && !ean) {
+    ean = eanPrefixMatch[1];
+    console.log("Content: Found EAN with prefix:", ean);
+  }
+
   // Only extract image URL if description is limited (3 words or less)
   let imageUrl = "";
   const hasLimitedDescription = (title?.split(' ').length || 0) <= 3 || (bullets?.length || 0) <= 1;
@@ -23,7 +57,7 @@ function scrape() {
     console.log("Content: Limited description detected, extracted image URL:", imageUrl ? "Yes" : "No");
   }
 
-  return { asin, title, brand, breadcrumbs, bullets, imageUrl, url: location.href };
+  return { asin, title, brand, breadcrumbs, bullets, imageUrl, ean, upc, url: location.href };
 }
 
 function mount() {
@@ -86,11 +120,24 @@ function render(el: HTMLElement, data: any) {
     const confidence = Math.round((data.origin.countries[0]?.confidence ?? 0) * 100);
     const source = data.origin.countries[0]?.sources?.[0] || "analysis";
     
+    // Add EAN/UPC info if available
+    let eanUpcInfo = "";
+    if (data?.origin?.ean_upc_info) {
+      const ean = data.origin.ean_upc_info.ean;
+      const upc = data.origin.ean_upc_info.upc;
+      if (ean || upc) {
+        eanUpcInfo = `<div style="margin-top:4px; font-size:0.9em; color:#666;">
+          ${ean ? `EAN: ${ean}` : ''} ${ean && upc ? '| ' : ''} ${upc ? `UPC: ${upc}` : ''}
+        </div>`;
+      }
+    }
+    
     originHtml = `
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
       <div style="font-weight:600; margin-bottom:4px;">Country of Origin</div>
       <div>${countries}</div>
       <small>Confidence: ${confidence}% | Source: ${source}</small>
+      ${eanUpcInfo}
     </div>`;
   }
   

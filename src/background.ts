@@ -63,7 +63,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           body: JSON.stringify({ 
             brand: product.brand, 
             title: product.title,
-            hs_code: top.hs_code 
+            hs_code: top.hs_code,
+            ean: product.ean,
+            upc: product.upc
           })
         }).then(r => r.json());
 
