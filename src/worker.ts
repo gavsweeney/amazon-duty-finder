@@ -155,10 +155,12 @@ function findBrandOrigin(brand: string): string[] | null {
   // Clean the brand name
   const cleanBrand = brand.replace(/^Brand:\s*/i, "").trim();
   console.log("Worker: Looking up origin for brand:", cleanBrand);
+  console.log("Worker: Available brands in database:", Object.keys(brandOriginMap).length);
   
   // Direct match
   if (brandOriginMap[cleanBrand]) {
     console.log("Worker: Direct match found for:", cleanBrand);
+    console.log("Worker: Manufacturing countries:", brandOriginMap[cleanBrand]);
     return brandOriginMap[cleanBrand];
   }
   
@@ -255,6 +257,8 @@ function findBrandOrigin(brand: string): string[] | null {
     }
   }
   
+  console.log("Worker: No brand match found for:", cleanBrand);
+  console.log("Worker: Attempted matching methods: direct, variations, word-based, substring");
   return null;
 }
 
@@ -396,11 +400,11 @@ export default {
       const body: OriginRequest = await req.json();
       console.log("Worker: Origin request body:", body);
 
+      // Clean and prepare search terms
+      const cleanBrand = body.brand.replace(/^Brand:\s*/i, "").trim();
+      const cleanTitle = body.title.trim();
+      
       try {
-        // Clean and prepare search terms
-        const cleanBrand = body.brand.replace(/^Brand:\s*/i, "").trim();
-        const cleanTitle = body.title.trim();
-        
         // First, try to find origin using brand mapping
         const brandOrigin = findBrandOrigin(cleanBrand);
         if (brandOrigin) {
@@ -419,34 +423,51 @@ export default {
         
         // If no brand match, fall back to AI analysis
         console.log("Worker: No brand match found, using AI analysis");
+        console.log("Worker: Brand:", cleanBrand);
+        console.log("Worker: Title:", cleanTitle);
+        
         const searchQuery = `${cleanBrand} ${cleanTitle} country of origin made in where manufactured production location "made in" "assembled in"`;
         console.log("Worker: AI search query:", searchQuery);
 
-        // Use AI to analyze and extract country information
-        const originPrompt = `You are a country of origin analyst. Analyze the following search query and return the most likely countries where this product is manufactured, along with confidence levels and reasoning.
+        // Enhanced AI prompt for better country of origin analysis
+        const originPrompt = `You are an expert country of origin analyst specializing in manufacturing and supply chain analysis. Your task is to determine the most likely manufacturing countries for a product based on available information.
 
-Search Query: "${searchQuery}"
+PRODUCT INFORMATION:
+- Brand: "${cleanBrand}"
+- Title: "${cleanTitle}"
+- Search Query: "${searchQuery}"
 
-Return JSON with this exact format:
+ANALYSIS INSTRUCTIONS:
+1. Analyze the brand name for any geographic or cultural indicators
+2. Consider the product type and common manufacturing locations
+3. Look for explicit mentions of "made in", "assembled in", or similar phrases
+4. Consider industry patterns for this type of product
+5. Be realistic about confidence levels based on available information
+
+REQUIRED OUTPUT FORMAT (JSON only):
 {
   "countries": [
     {
       "country": "Country Name",
       "confidence": 0.0-1.0,
-      "reasoning": "Brief explanation of why this country is likely",
-      "sources": ["type of source or evidence"]
+      "reasoning": "Detailed explanation of why this country is likely, including specific evidence or patterns",
+      "sources": ["evidence_type", "industry_knowledge", "product_analysis"]
     }
   ],
   "search_query": "${searchQuery}",
-  "notes": "Any additional observations or limitations"
+  "analysis_method": "AI_analysis",
+  "confidence_factors": ["brand_analysis", "product_type_patterns", "industry_knowledge"],
+  "notes": "Detailed observations about the analysis process, limitations, and recommendations for better accuracy"
 }
 
-Focus on:
-- Manufacturing locations mentioned in product descriptions
-- Common production countries for this type of product
-- Brand-specific manufacturing information
-- Be realistic about confidence levels based on available information
-- Return 2-4 most likely countries, sorted by confidence`;
+CONFIDENCE LEVEL GUIDELINES:
+- 0.9-1.0: Explicit "made in" statements or strong brand-country associations
+- 0.7-0.8: Strong industry patterns or brand characteristics
+- 0.5-0.6: General industry knowledge or educated guesses
+- 0.3-0.4: Weak indicators or limited information
+- 0.1-0.2: Very limited information, high uncertainty
+
+Return 2-4 most likely countries, sorted by confidence. Be specific and detailed in your reasoning.`;
 
         const chat = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
           messages: [
@@ -457,51 +478,119 @@ Focus on:
         });
 
         const raw = chat.response || "{}";
-        console.log("Worker: AI origin response:", raw);
+        console.log("Worker: AI origin response received:", raw.length, "characters");
+        console.log("Worker: Raw AI response:", raw);
         
-        // Clean the response - remove markdown formatting if present
+        // Enhanced response cleaning and validation
         let cleanResponse = raw;
+        let cleaningMethod = "none";
+        
         if (raw.includes('```json')) {
           const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/);
           if (jsonMatch) {
             cleanResponse = jsonMatch[1];
+            cleaningMethod = "json_code_block";
+            console.log("Worker: Extracted JSON from code block");
           }
         } else if (raw.includes('```')) {
           const codeMatch = raw.match(/```\s*([\s\S]*?)\s*```/);
           if (codeMatch) {
             cleanResponse = codeMatch[1];
+            cleaningMethod = "generic_code_block";
+            console.log("Worker: Extracted content from generic code block");
           }
         }
         
-        console.log("Worker: Cleaned origin response:", cleanResponse);
+        console.log("Worker: Response cleaning method:", cleaningMethod);
+        console.log("Worker: Cleaned response length:", cleanResponse.length);
+        console.log("Worker: Cleaned response:", cleanResponse);
         
-        // Validate JSON and return
+        // Enhanced JSON validation and error handling
         try {
           const parsedResponse = JSON.parse(cleanResponse);
+          console.log("Worker: Successfully parsed AI response");
+          console.log("Worker: Parsed countries count:", parsedResponse.countries?.length || 0);
+          
+          // Validate the response structure
+          if (!parsedResponse.countries || !Array.isArray(parsedResponse.countries)) {
+            console.warn("Worker: AI response missing countries array, adding fallback");
+            parsedResponse.countries = [
+              {
+                country: "Unknown",
+                confidence: 0.1,
+                reasoning: "AI response structure invalid, fallback added",
+                sources: ["ai_fallback"]
+              }
+            ];
+          }
+          
+          // Add metadata about the analysis
+          parsedResponse.analysis_timestamp = new Date().toISOString();
+          parsedResponse.processing_method = "AI_analysis_with_validation";
+          
           return json(parsedResponse);
         } catch (parseError) {
-          console.error("Worker: Invalid origin JSON response, returning fallback:", parseError);
-          // Return a fallback response
+          console.error("Worker: JSON parsing failed:", parseError);
+          console.error("Worker: Failed to parse response:", cleanResponse);
+          
+          // Enhanced fallback response with detailed error information
           return json({
             countries: [
               {
                 country: "Unknown",
                 confidence: 0.1,
-                reasoning: "Unable to determine country of origin from available information",
-                sources: ["fallback"]
+                reasoning: "AI analysis completed but response could not be parsed as valid JSON",
+                sources: ["ai_parsing_error"]
               }
             ],
             search_query: searchQuery,
-            notes: "AI analysis failed, returned fallback response"
+            analysis_method: "AI_analysis_failed",
+                      error_details: {
+            parsing_error: parseError instanceof Error ? parseError.message : String(parseError),
+            response_length: raw.length,
+            cleaning_method: cleaningMethod,
+            raw_response_preview: raw.substring(0, 200) + "..."
+          },
+            notes: "AI analysis was attempted but the response format was invalid. This may indicate an issue with the AI model's output or response processing.",
+            recommendations: [
+              "Check AI model response format",
+              "Verify JSON structure compliance",
+              "Consider retrying the analysis"
+            ]
           });
         }
       } catch (error) {
         console.error("Worker: Origin detection error:", error);
+        console.error("Worker: Error details:", {
+          error_type: error instanceof Error ? error.constructor.name : typeof error,
+          error_message: error instanceof Error ? error.message : String(error),
+          error_stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        });
+        
         return json({ 
           error: "Origin detection failed", 
-          countries: [],
-          search_query: "",
-          notes: "Error occurred during analysis"
+          countries: [
+            {
+              country: "Unknown",
+              confidence: 0.1,
+              reasoning: "System error occurred during origin analysis",
+              sources: ["system_error"]
+            }
+          ],
+          search_query: cleanBrand + " " + cleanTitle,
+          analysis_method: "error_fallback",
+          error_details: {
+            error_type: error instanceof Error ? error.constructor.name : typeof error,
+            error_message: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          },
+          notes: "A system error occurred during the origin analysis process. This may be due to AI service issues, network problems, or system errors.",
+          recommendations: [
+            "Check system logs for detailed error information",
+            "Verify AI service availability",
+            "Consider retrying the request"
+          ]
         });
       }
     }
