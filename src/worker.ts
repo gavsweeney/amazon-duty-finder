@@ -129,7 +129,29 @@ const brandOriginMap: Record<string, string[]> = {
   "Stanley": ["United States", "China", "United Kingdom"],
   "Craftsman": ["United States", "China", "Mexico"],
   "Husky": ["United States", "China"],
-  "Kobalt": ["United States", "China"]
+  "Kobalt": ["United States", "China"],
+  
+  // Children's Toys & Entertainment
+  "Teletubbies": ["United Kingdom"],
+  "BBC": ["United Kingdom"],
+  "Ragdoll": ["United Kingdom"],
+  "Disney": ["United States", "China"],
+  "Fisher-Price": ["United States", "China", "Mexico"],
+  "Little Tikes": ["United States", "China"],
+  "VTech": ["Hong Kong", "China"],
+  "LeapFrog": ["United States", "China"],
+  
+  // Popular Consumer Brands
+  "Nike": ["United States", "China", "Vietnam", "Indonesia"],
+  "Adidas": ["Germany", "China", "Vietnam", "Indonesia"],
+  "Apple": ["United States", "China"],
+  "Samsung": ["South Korea", "China", "Vietnam"],
+  "Sony": ["Japan", "China", "Malaysia"],
+  "Panasonic": ["Japan", "China", "Malaysia"],
+  "LG": ["South Korea", "China", "Vietnam"],
+  "Philips": ["Netherlands", "China", "Poland"],
+  "Braun": ["Germany", "China"],
+  "Oral-B": ["United States", "China", "Germany"]
 };
 
 const tariffTable = JSON.parse(UkTariffText());
@@ -319,7 +341,29 @@ function findBrandOrigin(brand: string): string[] | null {
     "Stanley": "Stanley",
     "Craftsman": "Craftsman",
     "Husky": "Husky",
-    "Kobalt": "Kobalt"
+    "Kobalt": "Kobalt",
+    
+    // Children's brand variations
+    "Teletubbies": "Teletubbies",
+    "BBC": "BBC",
+    "Ragdoll": "Ragdoll",
+    "Disney": "Disney",
+    "Fisher-Price": "Fisher-Price",
+    "Little Tikes": "Little Tikes",
+    "VTech": "VTech",
+    "LeapFrog": "LeapFrog",
+    
+    // Consumer brand variations
+    "Nike": "Nike",
+    "Adidas": "Adidas",
+    "Apple": "Apple",
+    "Samsung": "Samsung",
+    "Sony": "Sony",
+    "Panasonic": "Panasonic",
+    "LG": "LG",
+    "Philips": "Philips",
+    "Braun": "Braun",
+    "Oral-B": "Oral-B"
   };
   
   // Check variations first
