@@ -238,34 +238,67 @@ const eanCountryPrefixes: Record<string, string[]> = {
   "94": ["New Zealand"]
 };
 
-function analyzeEANCountry(ean: string): { countries: string[], confidence: number, reasoning: string } | null {
+function analyzeEANCountry(ean: string): { countries: string[], confidence: number, reasoning: string, primary_country: string } | null {
   if (!ean || ean.length < 2) return null;
   
   const prefix = ean.substring(0, 2);
   const countries = eanCountryPrefixes[prefix];
   
   if (countries) {
+    // Determine primary country based on EAN logic
+    let primaryCountry = countries[0];
+    let reasoning = `EAN-13 country code prefix '${prefix}' indicates registration in ${countries.join(', ')}`;
+    
+    // Special logic for different prefixes
+    if (prefix >= "00" && prefix <= "13") {
+      // US/Canada - US typically primary for major brands
+      primaryCountry = "United States";
+      reasoning += ". US registration suggests primary manufacturing location.";
+    } else if (prefix >= "20" && prefix <= "29") {
+      // US reserved codes - definitely US primary
+      primaryCountry = "United States";
+      reasoning += ". US reserved code indicates US-based company.";
+    } else if (prefix >= "40" && prefix <= "44") {
+      // Germany - often primary for European brands
+      primaryCountry = "Germany";
+      reasoning += ". German registration suggests European manufacturing focus.";
+    } else if (prefix >= "45" && prefix <= "49") {
+      // Japan - primary for Japanese brands
+      primaryCountry = "Japan";
+      reasoning += ". Japanese registration indicates Japan-based company.";
+    } else if (prefix === "50") {
+      // UK - primary for British brands
+      primaryCountry = "United Kingdom";
+      reasoning += ". UK registration suggests British manufacturing.";
+    }
+    
     return {
       countries,
-      confidence: 0.85, // High confidence for EAN country codes
-      reasoning: `EAN-13 country code prefix '${prefix}' indicates registration in ${countries.join(', ')}`
+      confidence: 0.85,
+      reasoning,
+      primary_country: primaryCountry
     };
   }
   
   return null;
 }
 
-function analyzeUPCCountry(upc: string): { countries: string[], confidence: number, reasoning: string } | null {
+function analyzeUPCCountry(upc: string): { countries: string[], confidence: number, reasoning: string, primary_country: string } | null {
   if (!upc || upc.length < 1) return null;
   
   // UPC-A codes typically start with 0-9 for US/Canada
   const firstDigit = upc.charAt(0);
   
   if (firstDigit >= '0' && firstDigit <= '9') {
+    // For UPC codes, US is typically primary for major brands
+    const primaryCountry = "United States";
+    const reasoning = `UPC-A code starting with '${firstDigit}' indicates US/Canada registration. US is primary for major brands.`;
+    
     return {
       countries: ["United States", "Canada"],
-      confidence: 0.80, // Good confidence for UPC codes
-      reasoning: `UPC-A code starting with '${firstDigit}' typically indicates US/Canada registration`
+      confidence: 0.80,
+      reasoning,
+      primary_country: primaryCountry
     };
   }
   
@@ -552,21 +585,66 @@ export default {
         const brandOrigin = findBrandOrigin(cleanBrand);
         if (brandOrigin) {
           console.log("Worker: Found brand origin from mapping:", brandOrigin);
+          
+          // Smart logic for brand mapping: prioritize based on brand characteristics
+          let primaryCountry = brandOrigin[0];
+          let analysisMethod = "brand_mapping";
+          let confidenceFactors = ["brand_database", "manufacturing_knowledge"];
+          let notes = `Origin determined from brand mapping database. ${cleanBrand} products are typically manufactured in these countries.`;
+          
+          // Smart prioritization for known brands
+          if (brandOrigin.includes("United States") && cleanBrand.toLowerCase().includes("milwaukee")) {
+            // Milwaukee: US brand, likely US primary
+            primaryCountry = "United States";
+            analysisMethod = "brand_mapping_smart";
+            confidenceFactors = ["brand_database", "us_brand_origin", "manufacturing_knowledge"];
+            notes = `Milwaukee is a US brand with primary manufacturing in the United States, supplemented by international production for cost efficiency.`;
+          } else if (brandOrigin.includes("United Kingdom") && cleanBrand.toLowerCase().includes("games workshop")) {
+            // Games Workshop: UK brand, UK primary
+            primaryCountry = "United Kingdom";
+            analysisMethod = "brand_mapping_smart";
+            confidenceFactors = ["brand_database", "uk_brand_origin", "manufacturing_knowledge"];
+            notes = `Games Workshop is a UK brand with primary manufacturing in the United Kingdom.`;
+          } else if (brandOrigin.includes("United States")) {
+            // General US brands: US primary
+            primaryCountry = "United States";
+            analysisMethod = "brand_mapping_smart";
+            confidenceFactors = ["brand_database", "us_brand_origin", "manufacturing_knowledge"];
+            notes = `${cleanBrand} is a US brand with primary manufacturing in the United States, supplemented by international production.`;
+          }
+          
+          // Calculate confidence: primary gets higher confidence
+          const primaryConfidence = 0.85;
+          const secondaryConfidence = 0.10;
+          const tertiaryConfidence = 0.05;
+          
           return json({
-            countries: brandOrigin.map(country => ({
+            countries: brandOrigin.map((country, index) => ({
               country,
-              confidence: 0.95,
-              reasoning: `Known manufacturing location for ${cleanBrand} brand`,
-              sources: ["brand_mapping"]
+              confidence: index === 0 ? primaryConfidence : 
+                         index === 1 ? secondaryConfidence : tertiaryConfidence,
+              reasoning: index === 0 ? 
+                `Known manufacturing location for ${cleanBrand} brand - **Primary location: ${country}**` : 
+                index === 1 ? `Secondary manufacturing location: ${country}` :
+                `Additional manufacturing location: ${country}`,
+              sources: ["brand_mapping"],
+              is_primary: country === primaryCountry
             })),
             search_query: `${cleanBrand} brand origin`,
-            notes: `Origin determined from brand mapping database. ${cleanBrand} products are typically manufactured in these countries.`
+            analysis_method: analysisMethod,
+            confidence_factors: confidenceFactors,
+            primary_country: primaryCountry,
+            notes: notes
           });
         }
         
-        // If no brand match, try EAN/UPC analysis first
+        // If no brand match, try EAN/UPC analysis with hybrid logic
         let eanUPCResult = null;
+        let hasEAN = false;
+        let hasUPC = false;
+        
         if (body.ean) {
+          hasEAN = true;
           console.log("Worker: Analyzing EAN code:", body.ean);
           eanUPCResult = analyzeEANCountry(body.ean);
           if (eanUPCResult) {
@@ -574,32 +652,102 @@ export default {
           }
         }
         
-        if (body.upc && !eanUPCResult) {
-          console.log("Worker: Analyzing UPC code:", body.upc);
-          eanUPCResult = analyzeUPCCountry(body.upc);
-          if (eanUPCResult) {
-            console.log("Worker: UPC analysis result:", eanUPCResult);
+        if (body.upc) {
+          hasUPC = true;
+          if (!eanUPCResult) {
+            console.log("Worker: Analyzing UPC code:", body.upc);
+            eanUPCResult = analyzeUPCCountry(body.upc);
+            if (eanUPCResult) {
+              console.log("Worker: UPC analysis result:", eanUPCResult);
+            }
           }
         }
         
-        // If EAN/UPC analysis found countries, use that
+        // Hybrid logic: Smart when we can be, simple when we can't
         if (eanUPCResult) {
-          console.log("Worker: Using EAN/UPC analysis result");
+          console.log("Worker: Using hybrid EAN/UPC analysis");
+          
+          let analysisMethod = "hybrid_ean_upc";
+          let confidenceFactors = ["barcode_country_code", "product_registration"];
+          let notes = "";
+          
+          // Smart Logic: EU EAN only (no US UPC) = Asia primary
+          if (hasEAN && !hasUPC && body.ean && body.ean.startsWith("4")) {
+            analysisMethod = "smart_ean_only";
+            confidenceFactors = ["eu_market_focus", "asia_manufacturing", "cost_efficiency"];
+            notes = "EU EAN registration without US UPC suggests Asia manufacturing for European market";
+            
+            // Reorder countries: Asia first, then others
+            const asiaCountries = eanUPCResult.countries.filter(c => 
+              ["China", "Indonesia", "Vietnam", "Thailand", "Malaysia", "Philippines"].includes(c)
+            );
+            const otherCountries = eanUPCResult.countries.filter(c => 
+              !["China", "Indonesia", "Vietnam", "Thailand", "Malaysia", "Philippines"].includes(c)
+            );
+            
+            eanUPCResult.countries = [...asiaCountries, ...otherCountries];
+            eanUPCResult.primary_country = asiaCountries[0] || eanUPCResult.countries[0];
+            
+          } 
+          // Smart Logic: US UPC only (no EAN) = US primary
+          else if (hasUPC && !hasEAN) {
+            analysisMethod = "smart_upc_only";
+            confidenceFactors = ["us_market_focus", "domestic_manufacturing"];
+            notes = "US UPC registration suggests US market focus and domestic manufacturing";
+            
+            // Reorder countries: US first, then others
+            const usCountries = eanUPCResult.countries.filter(c => c === "United States");
+            const otherCountries = eanUPCResult.countries.filter(c => c !== "United States");
+            
+            eanUPCResult.countries = [...usCountries, ...otherCountries];
+            eanUPCResult.primary_country = "United States";
+            
+          } 
+          // Simple Logic: Both UPC + EAN = 50/50 split
+          else if (hasUPC && hasEAN) {
+            analysisMethod = "simple_dual_market";
+            confidenceFactors = ["dual_market", "equal_probability"];
+            notes = "Dual market product (UPC + EAN) with equal probability across manufacturing locations";
+            
+            // Keep existing order but note equal probability
+            eanUPCResult.primary_country = eanUPCResult.countries[0];
+          }
+          
+          // Calculate confidence based on analysis method
+          let primaryConfidence = 0.85;
+          let secondaryConfidence = 0.10;
+          let tertiaryConfidence = 0.05;
+          
+          if (analysisMethod === "simple_dual_market") {
+            primaryConfidence = 0.50;
+            secondaryConfidence = 0.50;
+            tertiaryConfidence = 0.00;
+          }
+          
           return json({
-            countries: eanUPCResult.countries.map(country => ({
+            countries: eanUPCResult.countries.map((country, index) => ({
               country,
-              confidence: eanUPCResult.confidence,
-              reasoning: eanUPCResult.reasoning,
-              sources: ["ean_upc_analysis"]
+              confidence: index === 0 ? primaryConfidence : 
+                         index === 1 ? secondaryConfidence : tertiaryConfidence,
+              reasoning: index === 0 ? 
+                `${eanUPCResult.reasoning} **Primary location: ${country}**` : 
+                index === 1 ? `Secondary manufacturing location: ${country}` :
+                `Additional manufacturing location: ${country}`,
+              sources: ["ean_upc_analysis"],
+              is_primary: index === 0
             })),
             search_query: `${cleanBrand} ${cleanTitle} (EAN: ${body.ean || 'N/A'}, UPC: ${body.upc || 'N/A'})`,
-            analysis_method: "ean_upc_analysis",
-            confidence_factors: ["barcode_country_code", "product_registration"],
-            notes: `Country of origin determined from EAN/UPC barcode analysis. This indicates where the product was registered, which often correlates with manufacturing location.`,
+            analysis_method: analysisMethod,
+            confidence_factors: confidenceFactors,
+            primary_country: eanUPCResult.primary_country,
+            notes: notes,
             ean_upc_info: {
               ean: body.ean || null,
               upc: body.upc || null,
-              analysis_method: body.ean ? "EAN-13" : "UPC-A"
+              analysis_method: body.ean ? "EAN-13" : "UPC-A",
+              country_prefix: body.ean ? body.ean.substring(0, 2) : null,
+              has_ean: hasEAN,
+              has_upc: hasUPC
             }
           });
         }
