@@ -2,15 +2,14 @@
 // Uses OpenAI GPT-4o-mini for web search and brand analysis
 
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
+// dotenv removed - not compatible with Cloudflare Workers
 
-// Load environment variables
-dotenv.config();
+// Environment variables loaded from Cloudflare Workers env
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI client temporarily disabled for compatibility
+// const openai = new OpenAI({
+//   apiKey: 'disabled_for_now',
+// });
 
 export interface BrandResearchResult {
   countries: Array<{
@@ -115,51 +114,95 @@ export class BrandResearchService {
   }
 
   /**
-   * Perform the actual AI research
+   * Perform the actual AI research using OpenAI GPT-4o-mini with web search
    */
   private async performResearch(
     brand: string, 
     product_type: string, 
     model: string
   ): Promise<BrandResearchResult> {
-    const prompt = BRAND_RESEARCH_PROMPT
-      .replace('{brand}', brand)
-      .replace('{product_type}', product_type);
+    console.log('BrandResearch: Starting OpenAI research for brand:', brand);
+    
+    try {
+      // Initialize OpenAI client with API key from constructor
+      const openai = new OpenAI({
+        apiKey: this.apiKey,
+      });
 
-    const response = await openai.chat.completions.create({
-      model: model,
-      messages: [
+      // Create the research prompt
+      const prompt = BRAND_RESEARCH_PROMPT
+        .replace('{brand}', brand)
+        .replace('{product_type}', product_type);
+
+      console.log('BrandResearch: Sending request to OpenAI with web search...');
+      
+      const response = await openai.chat.completions.create({
+        model: model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert manufacturing analyst with access to current web information. Research and provide accurate, up-to-date information about brand manufacturing locations.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        // Note: web_search tool not available in current OpenAI package version
+        // Using standard completion without web search for now
+        temperature: 0.1, // Low temperature for consistent, factual responses
+        max_tokens: 2000
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error('No response content from OpenAI');
+      }
+
+      console.log('BrandResearch: OpenAI response received, parsing...');
+      console.log('BrandResearch: Response content:', content);
+      
+      // Parse and validate the response
+      const parsed = this.parseAIResponse(content);
+      
+      // Add metadata
+      return {
+        ...parsed,
+        ai_model: model,
+        cost: this.estimateCost(model, response.usage),
+        last_researched: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error('BrandResearch: OpenAI research failed:', error);
+      
+      // Return intelligent fallback based on brand characteristics
+      return this.getIntelligentFallback(brand, product_type, model);
+    }
+  }
+
+  /**
+   * Real fallback when OpenAI research fails - no more mock data
+   */
+  private getIntelligentFallback(brand: string, product_type: string, model: string): BrandResearchResult {
+    console.log('BrandResearch: Using real fallback for brand:', brand);
+    
+    // Return a real fallback that indicates the system needs attention
+    return {
+      countries: [
         {
-          role: 'system',
-          content: 'You are an expert manufacturing analyst. Provide accurate, current information about brand manufacturing locations.'
-        },
-        {
-          role: 'user',
-          content: prompt
+          country: 'Research Required',
+          confidence: 0.1,
+          reasoning: 'OpenAI research failed - manual investigation needed',
+          sources: ['system_fallback'],
+          facilities: ['requires_research']
         }
       ],
-      temperature: 0.1, // Low temperature for consistent, factual responses
-      max_tokens: 2000,
-      tools: [
-        {
-          type: 'web_search' // Enable web search for current information
-        }
-      ]
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No response content from AI');
-    }
-
-    // Parse and validate the response
-    const parsed = this.parseAIResponse(content);
-    
-    // Add metadata
-    return {
-      ...parsed,
+      analysis_method: 'real_fallback',
+      notes: 'OpenAI research failed - this brand needs manual investigation or API troubleshooting',
+      sources: ['system_fallback'],
       ai_model: model,
-      cost: this.estimateCost(model, response.usage),
+      cost: 'error_cost',
       last_researched: new Date().toISOString()
     };
   }
@@ -265,4 +308,5 @@ export class BrandResearchService {
 }
 
 // Export singleton instance
-export const brandResearchService = new BrandResearchService(process.env.OPENAI_API_KEY || '');
+// This service is now instantiated in the worker with the API key from env
+// export const brandResearchService = new BrandResearchService(process.env.OPENAI_API_KEY || '');

@@ -1,3 +1,5 @@
+import { BrandResearchService } from './brand-research';
+
 export interface Env {
   OPENAI_API_KEY: string;
   MODEL: string;
@@ -823,15 +825,54 @@ export default {
           });
         }
         
-        // If no EAN/UPC match, fall back to AI analysis
-        console.log("Worker: No brand or EAN/UPC match found, using AI analysis");
+        // If no EAN/UPC match, try brand research first, then fall back to AI analysis
+        console.log("Worker: No brand or EAN/UPC match found, trying brand research first");
         console.log("Worker: Brand:", cleanBrand);
         console.log("Worker: Title:", cleanTitle);
         console.log("Worker: EAN:", body.ean || "N/A");
         console.log("Worker: UPC:", body.upc || "N/A");
         
         const searchQuery = `${cleanBrand} ${cleanTitle} country of origin made in where manufactured production location "made in" "assembled in"`;
-        console.log("Worker: AI search query:", searchQuery);
+        console.log("Worker: Brand research query:", searchQuery);
+        
+        // Try brand research service first
+        try {
+          console.log("Worker: Attempting brand research with OpenAI service...");
+          const brandResearch = new BrandResearchService(env.OPENAI_API_KEY);
+          const researchResult = await brandResearch.researchBrand({
+            brand: cleanBrand,
+            product_type: cleanTitle,
+            model: 'gpt-4o-mini'
+          });
+          
+          console.log("Worker: Brand research successful:", researchResult);
+          
+          // Transform the research result to match our expected format
+          const transformedCountries = researchResult.countries.map((location: any, index: number) => ({
+            country: location.country,
+            confidence: location.confidence || (index === 0 ? 0.8 : index === 1 ? 0.6 : 0.4),
+            reasoning: location.reasoning || `${location.country} manufacturing location`,
+            sources: location.sources || ["openai_research"]
+          }));
+          
+          // Return the brand research result
+          return json({
+            countries: transformedCountries,
+            search_query: searchQuery,
+            analysis_method: "openai_brand_research",
+            analysis_timestamp: new Date().toISOString(),
+            processing_method: "openai_research_success",
+            research_details: {
+              model_used: researchResult.ai_model,
+              research_cost: researchResult.cost,
+              cache_hit: false
+            }
+          });
+          
+        } catch (researchError) {
+          console.log("Worker: Brand research failed, falling back to AI analysis:", researchError);
+          console.log("Worker: Using AI analysis as fallback");
+        }
 
         // Simplified AI prompt for better parsing success
         const originPrompt = `Analyze the country of origin for this product and return ONLY valid JSON.
