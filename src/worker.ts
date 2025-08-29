@@ -28,10 +28,12 @@ interface OriginResponse {
 // Brand to country of origin mapping
 const brandOriginMap: Record<string, string[]> = {
   // Gaming and Miniatures
-  "Games Workshop": ["United Kingdom"],
-  "Citadel": ["United Kingdom"], // Games Workshop's paint brand
-  "Forge World": ["United Kingdom"], // Games Workshop's resin brand
-  "Black Library": ["United Kingdom"], // Games Workshop's publishing brand
+      "Games Workshop": ["United Kingdom"],
+    "Warhammer": ["United Kingdom"], // Games Workshop's main game system
+    "Age of Sigmar": ["United Kingdom"], // Games Workshop's fantasy game
+    "Citadel": ["United Kingdom"], // Games Workshop's paint brand
+    "Forge World": ["United Kingdom"], // Games Workshop's resin brand
+    "Black Library": ["United Kingdom"], // Games Workshop's publishing brand
   "Wizards of the Coast": ["United States", "China"],
   "Hasbro": ["United States", "China", "Vietnam"],
   "Mattel": ["United States", "China", "Mexico"],
@@ -320,7 +322,9 @@ function findBrandOrigin(brand: string): string[] | null {
   
   // Handle common variations and abbreviations
   const brandVariations: Record<string, string> = {
-    "GW": "Games Workshop",
+    "Games Workshop": "Games Workshop",
+    "Warhammer": "Games Workshop", 
+    "Age of Sigmar": "Games Workshop",
     "WotC": "Wizards of the Coast",
     "FFG": "Fantasy Flight Games",
     "FF": "Fantasy Flight",

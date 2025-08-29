@@ -134,10 +134,16 @@ function render(el: HTMLElement, data: any) {
     
     // Add analysis explanation if available
     let analysisExplanation = "";
+    console.log("Content: Origin data received:", data?.origin);
+    console.log("Content: Analysis explanation:", data?.origin?.analysis_explanation);
+    
     if (data?.origin?.analysis_explanation) {
       analysisExplanation = `<div style="margin-top:8px; padding:8px; background:#f8f9fa; border-radius:6px; font-size:0.85em; line-height:1.4; color:#555;">
         <strong>Analysis:</strong> ${data.origin.analysis_explanation}
       </div>`;
+      console.log("Content: Analysis explanation HTML generated");
+    } else {
+      console.log("Content: No analysis explanation found");
     }
     
     originHtml = `
