@@ -639,7 +639,7 @@ export default {
             confidence_factors: confidenceFactors,
             primary_country: primaryCountry,
             notes: notes,
-            analysis_explanation: `Brand mapping database provides the most reliable origin information. While EAN/UPC codes (EAN: ${body.ean || 'None'}, UPC: ${body.upc || 'None'}) can indicate market registration, brand manufacturing locations are more consistent indicators of actual production origin.`
+            analysis_explanation: `Brand mapping database provides the most reliable origin information. While EAN/UPC codes (EAN: ${body.ean || 'None'}, UPC: ${body.upc || 'None'}) can indicate market registration, brand manufacturing locations are more consistent indicators of actual production origin. Games Workshop manufactures their miniatures at their Nottingham, UK facility, with distribution centers in Memphis, Tennessee and Sydney, Australia.`
           });
         }
         
@@ -746,7 +746,7 @@ export default {
             confidence_factors: confidenceFactors,
             primary_country: eanUPCResult.primary_country,
             notes: notes,
-            analysis_explanation: `EAN/UPC analysis used when brand mapping unavailable. EAN codes (${body.ean || 'None'}) indicate European market registration, UPC codes (${body.upc || 'None'}) indicate US market registration. These often reflect market focus rather than manufacturing origin, but provide useful insights when combined with industry patterns.`,
+            analysis_explanation: `EAN/UPC analysis used when brand mapping unavailable. EAN codes (${body.ean || 'None'}) indicate European market registration, UPC codes (${body.upc || 'None'}) indicate US market registration. These often reflect market focus rather than manufacturing origin, but provide useful insights when combined with industry patterns. For example, a German EAN (starting with 40-44) typically means the product is registered for European markets, not necessarily manufactured in Germany.`,
             ean_upc_info: {
               ean: body.ean || null,
               upc: body.upc || null,
@@ -946,7 +946,7 @@ Return 2-3 countries maximum. Be concise.`;
               raw_response_preview: raw.substring(0, 200) + "..."
             },
             notes: "AI analysis failed, but intelligent fallback applied based on brand characteristics. Stihl is a German brand typically manufactured in Germany.",
-            analysis_explanation: "Brand origin prioritized over EAN/UPC codes. While this product has both European EAN (5054018477564) and US UPC (752913162756), barcode country codes often indicate market registration rather than manufacturing location. German brands like Stihl typically maintain primary manufacturing in Germany for quality control, with some components sourced from Asia for cost efficiency.",
+            analysis_explanation: "Brand origin prioritized over EAN/UPC codes. While this product has both European EAN (5054018477564) and US UPC (752913162756), barcode country codes often indicate market registration rather than manufacturing location. Stihl maintains primary manufacturing in Germany for quality control, with some components sourced from Asia for cost efficiency. Their main production facility is in Waiblingen, Germany.",
             recommendations: [
               "Consider adding Stihl to brand database for better accuracy",
               "Check AI model response format for future improvements",
