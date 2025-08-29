@@ -25,7 +25,7 @@ interface OriginResponse {
   notes: string;
 }
 
-// Brand to country of origin mapping
+// Brand to country of origin mapping with analysis explanations
 const brandOriginMap: Record<string, string[]> = {
   // Gaming and Miniatures
       "Games Workshop": ["United Kingdom"],
@@ -442,6 +442,71 @@ function findBrandOrigin(brand: string): string[] | null {
   return null;
 }
 
+// Function to get brand-specific analysis explanations
+function getBrandAnalysisExplanation(brand: string, ean?: string, upc?: string): string {
+  const cleanBrand = brand.toLowerCase();
+  
+  // Gaming and Miniatures
+  if (cleanBrand.includes("games workshop") || cleanBrand.includes("warhammer") || cleanBrand.includes("age of sigmar")) {
+    return "Games Workshop manufactures their miniatures at their Nottingham, UK facility, with distribution centers in Memphis, Tennessee and Sydney, Australia. Source: [Games Workshop Investor Relations](https://investor.games-workshop.com/our-history)";
+  }
+  
+  if (cleanBrand.includes("wizards of the coast")) {
+    return "Wizards of the Coast designs games in the US but manufactures in China for cost efficiency. Source: [Wizards of the Coast](https://company.wizards.com/)";
+  }
+  
+  if (cleanBrand.includes("hasbro")) {
+    return "Hasbro designs in the US but manufactures globally, with significant production in China and Vietnam. Source: [Hasbro Manufacturing](https://investor.hasbro.com/)";
+  }
+  
+  if (cleanBrand.includes("mattel")) {
+    return "Mattel designs in the US but manufactures in China and Mexico for global distribution. Source: [Mattel Manufacturing](https://corporate.mattel.com/)";
+  }
+  
+  if (cleanBrand.includes("lego")) {
+    return "LEGO manufactures in Denmark, Czech Republic, Hungary, Mexico, and China. Their main facility is in Billund, Denmark. Source: [LEGO Manufacturing](https://www.lego.com/en-us/aboutus/lego-group/manufacturing)";
+  }
+  
+  if (cleanBrand.includes("bandai") || cleanBrand.includes("tamiya")) {
+    return "Japanese brands Bandai and Tamiya design in Japan but manufacture in both Japan and China for cost efficiency. Source: [Bandai Namco](https://www.bandainamco.co.jp/)";
+  }
+  
+  if (cleanBrand.includes("milwaukee")) {
+    return "Milwaukee maintains primary manufacturing in the US for quality control, with some components sourced from China and Mexico for cost efficiency. Source: [Milwaukee Tool](https://www.milwaukeetool.com/)";
+  }
+  
+  if (cleanBrand.includes("dewalt")) {
+    return "DeWalt designs in the US but manufactures globally, with significant production in China and Mexico. Source: [DeWalt Manufacturing](https://www.dewalt.com/)";
+  }
+  
+  if (cleanBrand.includes("bosch")) {
+    return "Bosch manufactures in Germany, China, and the US. Their main power tool facility is in Leinfelden-Echterdingen, Germany. Source: [Bosch Manufacturing](https://www.bosch.com/)";
+  }
+  
+  if (cleanBrand.includes("makita")) {
+    return "Makita manufactures in Japan, China, and the UK. Their main facility is in Anjo, Japan. Source: [Makita Manufacturing](https://www.makita.com/)";
+  }
+  
+  if (cleanBrand.includes("stihl")) {
+    return "Stihl maintains primary manufacturing in Germany for quality control, with some components sourced from Asia for cost efficiency. Their main production facility is in Waiblingen, Germany. Source: [Stihl Manufacturing](https://www.stihl.com/about-stihl/company/manufacturing.aspx)";
+  }
+  
+  if (cleanBrand.includes("apple")) {
+    return "Apple designs in the US but manufactures in China through Foxconn and other partners. Source: [Apple Manufacturing](https://www.apple.com/supplier-responsibility/)";
+  }
+  
+  if (cleanBrand.includes("nike")) {
+    return "Nike designs in the US but manufactures globally, with significant production in China, Vietnam, and Indonesia. Source: [Nike Manufacturing](https://purpose.nike.com/)";
+  }
+  
+  if (cleanBrand.includes("adidas")) {
+    return "Adidas designs in Germany but manufactures globally, with significant production in China, Vietnam, and Indonesia. Source: [Adidas Manufacturing](https://www.adidas-group.com/)";
+  }
+  
+  // Default explanation for other brands
+  return `Brand origin determined from manufacturing database. EAN codes (${ean || 'None'}) indicate European market registration, UPC codes (${upc || 'None'}) indicate US market registration. These reflect market focus rather than manufacturing origin.`;
+}
+
 const sysPrompt = `You are a customs classifier. 
 Given product data (title, brand, breadcrumbs, bullets), return 2-4 HS code candidates (6-10 digits ok).
 Return JSON with fields: candidates:[{hs_code, label, confidence (0-1), why}]. Do NOT include duty rates. Be concise.`;
@@ -639,7 +704,7 @@ export default {
             confidence_factors: confidenceFactors,
             primary_country: primaryCountry,
             notes: notes,
-            analysis_explanation: `Brand mapping database provides the most reliable origin information. While EAN/UPC codes (EAN: ${body.ean || 'None'}, UPC: ${body.upc || 'None'}) can indicate market registration, brand manufacturing locations are more consistent indicators of actual production origin. Games Workshop manufactures their miniatures at their Nottingham, UK facility, with distribution centers in Memphis, Tennessee and Sydney, Australia.`
+            analysis_explanation: getBrandAnalysisExplanation(cleanBrand, body.ean, body.upc)
           });
         }
         
@@ -746,7 +811,7 @@ export default {
             confidence_factors: confidenceFactors,
             primary_country: eanUPCResult.primary_country,
             notes: notes,
-            analysis_explanation: `EAN/UPC analysis used when brand mapping unavailable. EAN codes (${body.ean || 'None'}) indicate European market registration, UPC codes (${body.upc || 'None'}) indicate US market registration. These often reflect market focus rather than manufacturing origin, but provide useful insights when combined with industry patterns. For example, a German EAN (starting with 40-44) typically means the product is registered for European markets, not necessarily manufactured in Germany.`,
+            analysis_explanation: `EAN codes (${body.ean || 'None'}) indicate European market registration, UPC codes (${body.upc || 'None'}) indicate US market registration. These reflect market focus rather than manufacturing origin. For example, a German EAN (starting with 40-44) means registered for European markets, not necessarily manufactured in Germany.`,
             ean_upc_info: {
               ean: body.ean || null,
               upc: body.upc || null,
@@ -946,7 +1011,7 @@ Return 2-3 countries maximum. Be concise.`;
               raw_response_preview: raw.substring(0, 200) + "..."
             },
             notes: "AI analysis failed, but intelligent fallback applied based on brand characteristics. Stihl is a German brand typically manufactured in Germany.",
-            analysis_explanation: "Brand origin prioritized over EAN/UPC codes. While this product has both European EAN (5054018477564) and US UPC (752913162756), barcode country codes often indicate market registration rather than manufacturing location. Stihl maintains primary manufacturing in Germany for quality control, with some components sourced from Asia for cost efficiency. Their main production facility is in Waiblingen, Germany.",
+            analysis_explanation: getBrandAnalysisExplanation(cleanBrand, body.ean, body.upc),
             recommendations: [
               "Consider adding Stihl to brand database for better accuracy",
               "Check AI model response format for future improvements",
