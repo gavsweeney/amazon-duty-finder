@@ -21,5 +21,9 @@
     "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "vite": "^7.1.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "openai": "^5.16.0"
   }
 }
