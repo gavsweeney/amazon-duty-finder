@@ -116,7 +116,24 @@ function render(el: HTMLElement, data: any) {
   // Render origin information
   let originHtml = "";
   if (data?.origin?.countries && data.origin.countries.length > 0) {
-    const countries = data.origin.countries.map((c: any) => c.country).join(", ");
+    // Build detailed country breakdown with individual confidence and reasoning
+    const countriesBreakdown = data.origin.countries.map((c: any, index: number) => {
+      const confidence = Math.round((c.confidence ?? 0) * 100);
+      const position = index === 0 ? "Primary" : index === 1 ? "Secondary" : "Additional";
+      const reasoning = c.reasoning || `${position} manufacturing location`;
+      
+      return `
+        <div style="margin-bottom:8px; padding:8px; background:${index === 0 ? '#e8f5e8' : '#f0f8ff'}; border-radius:6px; border-left:4px solid ${index === 0 ? '#28a745' : index === 1 ? '#007bff' : '#6c757d'};">
+          <div style="font-weight:600; color:${index === 0 ? '#155724' : index === 1 ? '#004085' : '#495057'};">
+            ${c.country} (${confidence}% confidence)
+          </div>
+          <div style="font-size:0.85em; color:${index === 0 ? '#155724' : index === 1 ? '#004085' : '#495057'}; margin-top:2px;">
+            ${reasoning}
+          </div>
+        </div>
+      `;
+    }).join("");
+    
     const confidence = Math.round((data.origin.countries[0]?.confidence ?? 0) * 100);
     const source = data.origin.countries[0]?.sources?.[0] || "analysis";
     
@@ -149,8 +166,8 @@ function render(el: HTMLElement, data: any) {
     originHtml = `
     <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
       <div style="font-weight:600; margin-bottom:4px;">Country of Origin</div>
-      <div>${countries}</div>
-      <small>Confidence: ${confidence}% | Source: ${source}</small>
+      ${countriesBreakdown}
+      <small>Source: ${source}</small>
       ${eanUpcInfo}
       ${analysisExplanation}
     </div>`;
